@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>كورال كنيسه مارجرجس بالكابلات </title>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -32,7 +33,7 @@
       const choirKey = encodeURIComponent(choirName);
       await setDoc(doc(db, 'choirs', choirKey), {
         members:    data.members    || [],
-        songs:      (data.songs || []).map(s => ({...s, fileUrl: null})),
+        songs:      (data.songs || []).map(s => ({...s})),
         schedules:  data.schedules  || [],
         attRecords: data.attRecords || [],
         concerts:   data.concerts   || []
@@ -1323,8 +1324,31 @@ tr:hover td {
   table { min-width: 500px; }
 
   /* Song cards */
-  .song-card { padding: 12px 14px; gap: 10px; }
-  .song-actions { gap: 6px; }
+  .song-card { padding: 12px 14px; gap: 10px; flex-wrap: wrap; }
+  .song-actions { gap: 6px; flex-wrap: wrap; }
+  .song-info { min-width: 0; }
+  .song-icon-wrap { width: 38px; height: 38px; font-size: 18px; flex-shrink: 0; }
+
+  /* File Viewer على الموبايل */
+  #file-viewer-box {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  #file-viewer-box > div:first-child {
+    padding: 12px 14px !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #fv-title { font-size: 13px !important; }
+  #fv-type  { font-size: 11px !important; }
+  #fv-word  { padding: 16px !important; font-size: 14px !important; }
+  #fv-pptx  { padding: 10px !important; }
+  .pptx-slide { margin-bottom: 12px; }
+  .pptx-slide-content { padding: 14px 16px !important; }
+  .pptx-slide-content h2 { font-size: 15px !important; }
 
   /* Choir cards on landing */
   .choir-cards {
@@ -2469,7 +2493,7 @@ tr:hover td {
         <div style="font-size:28px;margin-bottom:8px;">📎</div>
         <div>اضغط لاختيار ملف</div>
         <div style="font-size:12px;margin-top:4px;opacity:0.7;">PDF · MP3 · صورة · Word</div>
-        <input type="file" id="s-file" accept=".pdf,.mp3,.jpg,.jpeg,.png,.docx" onchange="previewFile(this)">
+        <input type="file" id="s-file" accept=".pdf,.mp3,.jpg,.jpeg,.png,.docx,.pptx" onchange="previewFile(this)">
       </div>
       <div id="s-file-preview"></div>
     </div>
@@ -3463,16 +3487,42 @@ function previewFile(input) {
     ? `<div class="file-selected">📎 ${pendingFile.name}</div>` : '';
 }
 
-function addSong() {
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addSong() {
   const name = document.getElementById('s-name').value.trim();
   if (!name) return alert('من فضلك اكتب اسم الترنيمة');
+
+  let fileUrl = null;
+  let fileName = null;
+  if (pendingFile) {
+    if (pendingFile.size > 5 * 1024 * 1024) {
+      return alert('❌ حجم الملف كبير جداً (أكبر من 5 ميغا)\nمن فضلك استخدم ملف أصغر');
+    }
+    document.getElementById('s-file-preview').innerHTML = '<div class="file-selected">⏳ جاري قراءة الملف...</div>';
+    try {
+      fileUrl = await fileToBase64(pendingFile);
+      fileName = pendingFile.name;
+    } catch(e) {
+      alert('❌ حصل خطأ أثناء قراءة الملف');
+      return;
+    }
+  }
+
   const song = {
     id: Date.now(), name,
     group: document.getElementById('s-group').value,
     season: document.getElementById('s-season').value.trim(),
     notes: document.getElementById('s-notes').value.trim(),
-    fileName: pendingFile ? pendingFile.name : null,
-    fileUrl: pendingFile ? URL.createObjectURL(pendingFile) : null
+    fileName: fileName,
+    fileUrl: fileUrl
   };
   songs.push(song);
   ['s-name','s-season','s-notes'].forEach(id => document.getElementById(id).value = '');
@@ -3485,22 +3535,46 @@ function addSong() {
   pushNotification('song', '🎵 ترنيمة جديدة أُضيفت', name + (song.season ? ' · ' + song.season : ''), currentChoir);
 }
 
+function getSongFileIcon(fileName) {
+  if (!fileName) return '📎';
+  const ext = fileName.split('.').pop().toLowerCase();
+  if (['doc','docx'].includes(ext)) return '📝';
+  if (['ppt','pptx'].includes(ext)) return '📊';
+  if (['pdf'].includes(ext)) return '📄';
+  if (['mp3','wav','m4a','ogg'].includes(ext)) return '🎵';
+  if (['mp4','mov','avi'].includes(ext)) return '🎬';
+  if (['jpg','jpeg','png','gif'].includes(ext)) return '🖼️';
+  return '📎';
+}
+
 function renderSongs(search) {
   const el = document.getElementById('songs-list');
   const list = songs.filter(s => !search || s.name.includes(search) || (s.season && s.season.includes(search)));
   if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🎶</div><p>لا يوجد ترانيم بعد</p></div>'; return; }
-  el.innerHTML = list.map(s => `
+  el.innerHTML = list.map(s => {
+    const fileIcon = getSongFileIcon(s.fileName);
+    const ext = s.fileName ? s.fileName.split('.').pop().toLowerCase() : '';
+    const canView = ['docx','pptx'].includes(ext);
+    const fileButtons = s.fileUrl ? `
+      ${canView ? `<button onclick="openFileViewer(${s.id})" class="btn btn-sm" style="background:rgba(61,214,140,0.12);border-color:rgba(61,214,140,0.3);color:#3dd68c;" title="عرض الملف داخل التطبيق">
+        ${fileIcon} عرض
+      </button>` : ''}
+      <a href="${s.fileUrl}" download="${s.fileName}" class="btn btn-sm btn-dl" title="تنزيل الملف">
+        ⬇ تنزيل
+      </a>` : `<span style="font-size:12px;color:var(--text2);opacity:0.6;">لا يوجد ملف مرفق</span>`;
+    return `
     <div class="song-card">
-      <div class="song-icon-wrap">🎵</div>
+      <div class="song-icon-wrap">${s.fileUrl ? fileIcon : '🎵'}</div>
       <div class="song-info">
         <h4>${s.name}</h4>
-        <p>${s.group}${s.season ? ' · ' + s.season : ''}${s.notes ? ' · ' + s.notes : ''}</p>
+        <p>${s.group}${s.season ? ' · ' + s.season : ''}${s.notes ? ' · ' + s.notes : ''}${s.fileName ? ' · <span style="color:var(--blue);font-size:11px;">'+s.fileName+'</span>' : ''}</p>
       </div>
       <div class="song-actions">
-        ${s.fileUrl ? `<a href="${s.fileUrl}" download="${s.fileName}" class="btn btn-sm btn-dl">⬇ ${s.fileName}</a>` : ''}
-        <button class="btn btn-sm btn-del" onclick="deleteSong(${s.id})">حذف</button>
+        ${fileButtons}
+        <button class="btn btn-sm btn-del" onclick="deleteSong(${s.id})">🗑 حذف</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function deleteSong(id) {
@@ -4511,7 +4585,7 @@ function exportBackupJSON() {
     choir: currentChoir,
     exportDate: new Date().toISOString(),
     source: 'Firebase Firestore - asret-altsbeh',
-    members, songs: songs.map(s=>({...s, fileUrl:null})),
+    members, songs: songs.map(s=>({...s, fileUrl: null, fileName: s.fileName})), // ملفات محفوظة في Firestore
     schedules, attRecords, concerts
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
@@ -4637,5 +4711,217 @@ window.addEventListener('resize', () => {
 });
 // ===================== END MOBILE NAVIGATION =====================
 </script>
+
+<!-- ====== File Viewer Modal ====== -->
+<div class="modal-overlay" id="modal-file-viewer" style="z-index:200;" onclick="if(event.target===this)closeFileViewer()">
+  <div id="file-viewer-box" style="
+    background:var(--bg2); border:1px solid var(--border2); border-radius:18px;
+    width:90vw; max-width:900px; height:88vh; display:flex; flex-direction:column;
+    animation: modalIn 0.25s ease; overflow:hidden; position:relative;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span id="fv-icon" style="font-size:24px;">📄</span>
+        <div>
+          <div id="fv-title" style="font-size:16px;font-weight:700;color:var(--text);">اسم الملف</div>
+          <div id="fv-type" style="font-size:12px;color:var(--text2);margin-top:2px;">نوع الملف</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <a id="fv-download-btn" href="#" download="" class="btn btn-sm btn-dl">⬇ تنزيل</a>
+        <button class="btn btn-sm" onclick="closeFileViewer()" style="padding:6px 14px;">✕ إغلاق</button>
+      </div>
+    </div>
+    <!-- Content area -->
+    <div id="fv-content" style="flex:1;overflow:auto;padding:0;position:relative;">
+      <div id="fv-loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text2);">
+        <div style="font-size:40px;">⏳</div>
+        <div style="font-size:14px;">جاري تحميل الملف...</div>
+      </div>
+      <!-- Word viewer -->
+      <div id="fv-word" style="display:none;padding:32px 40px;direction:rtl;background:#fff;color:#111;min-height:100%;font-family:'Tajawal',Arial,sans-serif;line-height:1.8;font-size:15px;"></div>
+      <!-- PPTX viewer -->
+      <div id="fv-pptx" style="display:none;padding:20px;background:var(--bg);min-height:100%;"></div>
+      <!-- Error -->
+      <div id="fv-error" style="display:none;padding:40px;text-align:center;color:var(--red);">
+        <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+        <div id="fv-error-msg" style="font-size:15px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+#fv-word h1,#fv-word h2,#fv-word h3{color:#1a1a2e;margin:16px 0 8px;}
+#fv-word p{margin:6px 0;}
+#fv-word table{border-collapse:collapse;width:100%;margin:12px 0;}
+#fv-word td,#fv-word th{border:1px solid #ddd;padding:8px 12px;}
+#fv-word th{background:#f3f4f6;font-weight:700;}
+#fv-word img{max-width:100%;border-radius:6px;}
+.pptx-slide{
+  background:#fff; border-radius:12px; margin-bottom:20px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.25);
+  overflow:hidden; position:relative;
+  aspect-ratio:16/9; width:100%;
+  display:flex;align-items:center;justify-content:center;
+}
+.pptx-slide-num{
+  position:absolute;top:10px;left:10px;
+  background:rgba(0,0,0,0.5);color:#fff;
+  font-size:11px;padding:3px 8px;border-radius:20px;
+}
+.pptx-slide-content{
+  padding:24px 32px;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;direction:rtl;font-family:'Tajawal',Arial,sans-serif;
+  overflow:hidden;
+}
+.pptx-slide-content h2{font-size:clamp(16px,3vw,28px);color:#1a1a2e;margin-bottom:12px;}
+.pptx-slide-content p,.pptx-slide-content li{font-size:clamp(12px,1.8vw,16px);color:#374151;line-height:1.6;}
+</style>
+
+<script>
+function openFileViewer(songId) {
+  const s = songs.find(x => x.id == songId);
+  if (!s || !s.fileUrl) return alert('لا يوجد ملف مرفق');
+  
+  const ext = (s.fileName || '').split('.').pop().toLowerCase();
+  const overlay = document.getElementById('modal-file-viewer');
+  
+  // Set header
+  document.getElementById('fv-title').textContent = s.fileName || s.name;
+  document.getElementById('fv-type').textContent = ext === 'docx' ? 'مستند Word' : ext === 'pptx' ? 'عرض PowerPoint' : 'ملف';
+  document.getElementById('fv-icon').textContent = ext === 'docx' ? '📝' : ext === 'pptx' ? '📊' : '📄';
+  document.getElementById('fv-download-btn').href = s.fileUrl;
+  document.getElementById('fv-download-btn').download = s.fileName;
+  
+  // Reset panels
+  ['fv-loader','fv-word','fv-pptx','fv-error'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('fv-loader').style.display = 'flex';
+  overlay.classList.add('open');
+  
+  // Convert base64 to ArrayBuffer
+  const base64 = s.fileUrl.split(',')[1];
+  const binary = atob(base64);
+  const buf = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+  const arrayBuffer = buf.buffer;
+  
+  if (ext === 'docx') {
+    renderWordDoc(arrayBuffer);
+  } else if (ext === 'pptx') {
+    renderPptx(arrayBuffer);
+  } else {
+    showViewerError('نوع الملف ده مش متاح للعرض الداخلي.<br>استخدم زرار التنزيل.');
+  }
+}
+
+function closeFileViewer() {
+  document.getElementById('modal-file-viewer').classList.remove('open');
+  document.getElementById('fv-word').innerHTML = '';
+  document.getElementById('fv-pptx').innerHTML = '';
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="'+src+'"]')) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function renderWordDoc(arrayBuffer) {
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    document.getElementById('fv-loader').style.display = 'none';
+    const wordDiv = document.getElementById('fv-word');
+    wordDiv.innerHTML = result.value || '<p style="color:#999;text-align:center;padding:40px;">الملف فارغ أو لا يحتوي على نص</p>';
+    wordDiv.style.display = 'block';
+  } catch(e) {
+    showViewerError('تعذّر قراءة ملف Word.<br><small>' + e.message + '</small>');
+  }
+}
+
+async function renderPptx(arrayBuffer) {
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const slides = [];
+    
+    // Get slide list in order
+    const slideRels = zip.file('ppt/_rels/presentation.xml.rels');
+    let slideOrder = [];
+    if (slideRels) {
+      const relXml = await slideRels.async('text');
+      const matches = [...relXml.matchAll(/Target="slides\/(slide\d+)\.xml"/g)];
+      slideOrder = matches.map(m => m[1]);
+    }
+    if (!slideOrder.length) {
+      const keys = Object.keys(zip.files).filter(k => k.match(/^ppt\/slides\/slide\d+\.xml$/));
+      slideOrder = keys.map(k => k.replace('ppt/slides/','').replace('.xml',''));
+    }
+    
+    for (const slideName of slideOrder) {
+      const slideFile = zip.file(`ppt/slides/${slideName}.xml`);
+      if (!slideFile) continue;
+      const xml = await slideFile.async('text');
+      
+      // Extract texts with position hints
+      const txBodies = [...xml.matchAll(/<p:txBody>([\s\S]*?)<\/p:txBody>/g)];
+      const texts = [];
+      txBodies.forEach(tb => {
+        const paras = [...tb[1].matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)];
+        paras.forEach(p => {
+          const runs = [...p[1].matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)];
+          const line = runs.map(r => r[1]).join('').trim();
+          if (line) texts.push(line);
+        });
+      });
+      
+      if (texts.length || slideOrder.indexOf(slideName) >= 0) {
+        slides.push({ num: slideOrder.indexOf(slideName) + 1, texts });
+      }
+    }
+    
+    document.getElementById('fv-loader').style.display = 'none';
+    const pptxDiv = document.getElementById('fv-pptx');
+    
+    if (!slides.length) {
+      pptxDiv.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text2);">لم يتم العثور على محتوى في العرض التقديمي</div>';
+    } else {
+      pptxDiv.innerHTML = slides.map(slide => {
+        const title = slide.texts[0] || '';
+        const body = slide.texts.slice(1);
+        return `<div class="pptx-slide">
+          <span class="pptx-slide-num">شريحة ${slide.num}</span>
+          <div class="pptx-slide-content">
+            ${title ? `<h2>${escHtml(title)}</h2>` : ''}
+            ${body.length ? '<ul style="text-align:right;width:100%;max-width:600px;">' + body.map(t=>`<li>${escHtml(t)}</li>`).join('') + '</ul>' : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    pptxDiv.style.display = 'block';
+  } catch(e) {
+    showViewerError('تعذّر قراءة ملف PowerPoint.<br><small>' + e.message + '</small>');
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showViewerError(msg) {
+  document.getElementById('fv-loader').style.display = 'none';
+  const errDiv = document.getElementById('fv-error');
+  document.getElementById('fv-error-msg').innerHTML = msg;
+  errDiv.style.display = 'block';
+}
+</script>
+<!-- ====== End File Viewer Modal ====== -->
 </body>
 </html>
