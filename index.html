@@ -4836,10 +4836,60 @@ function loadScript(src) {
 async function renderWordDoc(arrayBuffer) {
   try {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
-    const result = await mammoth.convertToHtml({ arrayBuffer });
+
+    const result = await mammoth.convertToHtml({ arrayBuffer,
+      styleMap: [
+        "p[style-name='Normal'] => p:fresh",
+        "r[style-name='Strong'] => strong",
+      ]
+    });
+
     document.getElementById('fv-loader').style.display = 'none';
     const wordDiv = document.getElementById('fv-word');
     wordDiv.innerHTML = result.value || '<p style="color:#999;text-align:center;padding:40px;">الملف فارغ أو لا يحتوي على نص</p>';
+
+    // Fix RTL/LTR direction per element based on content
+    wordDiv.querySelectorAll('p, h1, h2, h3, h4, li, td, th').forEach(el => {
+      const text = el.textContent.trim();
+      if (!text) return;
+      // Detect if text starts with Arabic/Hebrew characters
+      const firstChar = text.replace(/^[\s\d\W]+/, '')[0];
+      if (!firstChar) return;
+      const isRTL = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(firstChar);
+      el.style.direction = isRTL ? 'rtl' : 'ltr';
+      el.style.textAlign  = isRTL ? 'right' : 'left';
+      el.style.unicodeBidi = 'embed';
+    });
+
+    // Fix tables - reverse columns for RTL
+    wordDiv.querySelectorAll('table').forEach(t => {
+      t.style.direction = 'rtl';
+      t.style.width = '100%';
+      // Reverse cells in each row so RTL order is correct
+      t.querySelectorAll('tr').forEach(row => {
+        const cells = Array.from(row.children);
+        if (cells.length > 1) {
+          // Check if content is RTL (Arabic)
+          const firstText = cells[0].textContent.trim();
+          const isRTL = /[؀-ۿ]/.test(firstText) || 
+                        cells.some(c => /[؀-ۿ]/.test(c.textContent));
+          if (isRTL) {
+            // Reverse the order of cells to match RTL reading
+            cells.reverse().forEach(cell => {
+              cell.style.textAlign = 'right';
+              cell.style.direction = 'rtl';
+              row.appendChild(cell);
+            });
+          }
+        } else {
+          cells.forEach(c => {
+            c.style.textAlign = 'right';
+            c.style.direction = 'rtl';
+          });
+        }
+      });
+    });
+
     wordDiv.style.display = 'block';
   } catch(e) {
     showViewerError('تعذّر قراءة ملف Word.<br><small>' + e.message + '</small>');
