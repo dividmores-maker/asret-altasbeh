@@ -4710,6 +4710,20 @@ window.addEventListener('resize', () => {
   }
 });
 // ===================== END MOBILE NAVIGATION =====================
+
+// ===== EXPOSE FUNCTIONS TO GLOBAL SCOPE =====
+if (typeof doLogin !== "undefined") window.doLogin = doLogin;
+if (typeof doLogout !== "undefined") window.doLogout = doLogout;
+if (typeof enterChoir !== "undefined") window.enterChoir = enterChoir;
+if (typeof openModal !== "undefined") window.openModal = openModal;
+if (typeof closeModal !== "undefined") window.closeModal = closeModal;
+if (typeof addSong !== "undefined") window.addSong = addSong;
+if (typeof deleteSong !== "undefined") window.deleteSong = deleteSong;
+if (typeof renderSongs !== "undefined") window.renderSongs = renderSongs;
+if (typeof openFileViewer !== "undefined") window.openFileViewer = openFileViewer;
+if (typeof closeFileViewer !== "undefined") window.closeFileViewer = closeFileViewer;
+if (typeof playSongAudio !== "undefined") window.playSongAudio = playSongAudio;
+// ===== END EXPOSE =====
 </script>
 
 <!-- ====== File Viewer Modal ====== -->
