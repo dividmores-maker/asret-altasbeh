@@ -1667,6 +1667,28 @@ tr:hover td {
 </style>
 
 <!-- LOGIN SCREEN -->
+<!-- Early function proxies — defined here so onclick handlers work before the main script loads -->
+<script>
+  function switchLoginRole(role) {
+    if (window._switchLoginRole) return window._switchLoginRole(role);
+    // Minimal fallback until main script loads
+    var tabs = document.querySelectorAll('.login-tab');
+    tabs.forEach(function(t, i) {
+      t.classList.toggle('active', (role === 'admin' && i === 0) || (role === 'viewer' && i === 1));
+    });
+    var label = document.getElementById('login-pass-label');
+    if (label) label.textContent = role === 'admin' ? 'كلمة سر المدير' : 'كلمة سر المتفرج';
+    var inp = document.getElementById('login-pass-input');
+    if (inp) inp.value = '';
+    window._pendingLoginRole = role;
+  }
+  function doLogin() {
+    if (window._doLogin) return window._doLogin();
+    // If main script not ready yet, wait and retry
+    setTimeout(function() { if (window._doLogin) window._doLogin(); }, 300);
+  }
+</script>
+
 <div id="login-screen">
   <!-- Background orbs -->
   <div class="login-orb" style="width:500px;height:500px;background:rgba(124,111,247,0.25);top:-120px;right:-100px;animation-duration:10s;"></div>
@@ -1807,116 +1829,8 @@ tr:hover td {
   <!-- Three.js 3D background -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-  <script>
-  (function() {
-    const canvas = document.getElementById('bg-canvas');
-    if (!canvas || typeof THREE === 'undefined') return;
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 20;
-
-    const shapes = [];
-    const colors = [0x7c6ff7, 0x5ea8f7, 0xf0a840, 0xe06bb5, 0x3dd68c, 0xa89ff9];
-
-    function rnd(a, b) { return a + Math.random() * (b - a); }
-
-    // Wireframe 3D objects
-    const geometries = [
-      new THREE.OctahedronGeometry(1.2, 0),
-      new THREE.TetrahedronGeometry(1.2, 0),
-      new THREE.IcosahedronGeometry(1, 0),
-      new THREE.BoxGeometry(1.6, 1.6, 1.6),
-      new THREE.TorusGeometry(0.9, 0.3, 8, 12),
-    ];
-
-    for (let i = 0; i < 28; i++) {
-      const geo = geometries[Math.floor(Math.random() * geometries.length)];
-      const mat = new THREE.MeshBasicMaterial({
-        color: colors[Math.floor(Math.random() * colors.length)],
-        wireframe: true,
-        transparent: true,
-        opacity: rnd(0.06, 0.18)
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(rnd(-30, 30), rnd(-20, 20), rnd(-30, 5));
-      mesh.rotation.set(rnd(0, Math.PI*2), rnd(0, Math.PI*2), rnd(0, Math.PI*2));
-      mesh.userData = {
-        rx: rnd(-0.003, 0.003),
-        ry: rnd(-0.004, 0.004),
-        rz: rnd(-0.002, 0.002),
-        fy: rnd(-0.008, 0.008),
-        baseY: mesh.position.y,
-        phase: rnd(0, Math.PI * 2)
-      };
-      scene.add(mesh);
-      shapes.push(mesh);
-    }
-
-    // Floating dots
-    const dotGeo = new THREE.BufferGeometry();
-    const dotCount = 200;
-    const pos = new Float32Array(dotCount * 3);
-    for (let i = 0; i < dotCount; i++) {
-      pos[i*3]   = rnd(-40, 40);
-      pos[i*3+1] = rnd(-30, 30);
-      pos[i*3+2] = rnd(-20, 5);
-    }
-    dotGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const dotMat = new THREE.PointsMaterial({ color: 0x7c6ff7, size: 0.12, transparent: true, opacity: 0.4 });
-    scene.add(new THREE.Points(dotGeo, dotMat));
-
-    let mouse = { x: 0, y: 0 };
-    document.addEventListener('mousemove', e => {
-      mouse.x = (e.clientX / window.innerWidth  - 0.5) * 0.5;
-      mouse.y = (e.clientY / window.innerHeight - 0.5) * 0.5;
-    });
-
-    let t = 0;
-    function animate() {
-      if (!document.getElementById('landing-screen') || document.getElementById('landing-screen').style.display === 'none') return;
-      requestAnimationFrame(animate);
-      t += 0.01;
-      shapes.forEach(m => {
-        m.rotation.x += m.userData.rx;
-        m.rotation.y += m.userData.ry;
-        m.rotation.z += m.userData.rz;
-        m.position.y = m.userData.baseY + Math.sin(t + m.userData.phase) * 1.5;
-      });
-      camera.position.x += (mouse.x * 4 - camera.position.x) * 0.04;
-      camera.position.y += (-mouse.y * 3 - camera.position.y) * 0.04;
-      camera.lookAt(scene.position);
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  })();
-
-  // 3D tilt effect on cards
-  document.querySelectorAll('.choir-card').forEach(card => {
-    card.addEventListener('mousemove', e => {
-      const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width  - 0.5;
-      const y = (e.clientY - rect.top)  / rect.height - 0.5;
-      card.querySelector('.choir-card-inner').style.transform =
-        `rotateY(${x * 14}deg) rotateX(${-y * 10}deg) translateZ(10px)`;
-    });
-    card.addEventListener('mouseleave', () => {
-      card.querySelector('.choir-card-inner').style.transform = '';
-    });
-  });
-  </script>
 </div>
-
-<body>
 
 <!-- ===================== MOBILE HEADER ===================== -->
 <div class="mobile-header" id="mobile-header" style="display:none;">
@@ -2488,12 +2402,20 @@ tr:hover td {
     <div class="form-group"><label>المناسبة / الموسم</label><input type="text" id="s-season" placeholder="مثال: أحد القيامة — الميلاد — خماسين..."></div>
     <div class="form-group"><label>ملاحظات</label><textarea id="s-notes" placeholder="أي ملاحظات إضافية..."></textarea></div>
     <div class="form-group">
-      <label>رفع ملف الترنيمة</label>
+      <label>ملف الترنيمة</label>
+      <div style="background:rgba(61,214,140,0.08);border:1px solid rgba(61,214,140,0.25);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">🔗 اسم الملف على GitHub (فولدر songs)</div>
+        <input type="text" id="s-github-file" placeholder="مثال: ترنيمة_القيامة.mp3"
+          style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.1);outline:none;color:var(--text);font-family:'Tajawal',sans-serif;font-size:14px;padding:4px 0;"
+          oninput="previewGithubFile(this.value)">
+        <div id="s-github-preview" style="margin-top:8px;"></div>
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--text2);margin-bottom:8px;">— أو ارفع ملف صغير (Word / PDF) —</div>
       <div class="file-drop" onclick="document.getElementById('s-file').click()">
         <div style="font-size:28px;margin-bottom:8px;">📎</div>
         <div>اضغط لاختيار ملف</div>
-        <div style="font-size:12px;margin-top:4px;opacity:0.7;">PDF · MP3 · صورة · Word</div>
-        <input type="file" id="s-file" accept=".pdf,.mp3,.jpg,.jpeg,.png,.docx,.pptx" onchange="previewFile(this)">
+        <div style="font-size:12px;margin-top:4px;opacity:0.7;">PDF · Word · PowerPoint</div>
+        <input type="file" id="s-file" accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png" onchange="previewFile(this)">
       </div>
       <div id="s-file-preview"></div>
     </div>
@@ -2547,7 +2469,186 @@ tr:hover td {
   </div>
 </div>
 
+
+<!-- ====== File Viewer Modal ====== -->
+<div class="modal-overlay" id="modal-file-viewer" style="z-index:200;" onclick="if(event.target===this)closeFileViewer()">
+  <div id="file-viewer-box" style="
+    background:var(--bg2); border:1px solid var(--border2); border-radius:18px;
+    width:90vw; max-width:900px; height:88vh; display:flex; flex-direction:column;
+    animation: modalIn 0.25s ease; overflow:hidden; position:relative;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span id="fv-icon" style="font-size:24px;">📄</span>
+        <div>
+          <div id="fv-title" style="font-size:16px;font-weight:700;color:var(--text);">اسم الملف</div>
+          <div id="fv-type" style="font-size:12px;color:var(--text2);margin-top:2px;">نوع الملف</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <a id="fv-download-btn" href="#" download="" class="btn btn-sm btn-dl">⬇ تنزيل</a>
+        <button class="btn btn-sm" onclick="closeFileViewer()" style="padding:6px 14px;">✕ إغلاق</button>
+      </div>
+    </div>
+    <!-- Content area -->
+    <div id="fv-content" style="flex:1;overflow:auto;padding:0;position:relative;">
+      <div id="fv-loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text2);">
+        <div style="font-size:40px;">⏳</div>
+        <div style="font-size:14px;">جاري تحميل الملف...</div>
+      </div>
+      <!-- Word viewer -->
+      <div id="fv-word" style="display:none;padding:32px 40px;direction:rtl;background:#fff;color:#111;min-height:100%;font-family:'Tajawal',Arial,sans-serif;line-height:1.8;font-size:15px;"></div>
+      <!-- PPTX viewer -->
+      <div id="fv-pptx" style="display:none;padding:20px;background:var(--bg);min-height:100%;"></div>
+      <!-- Error -->
+      <div id="fv-error" style="display:none;padding:40px;text-align:center;color:var(--red);">
+        <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+        <div id="fv-error-msg" style="font-size:15px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+#fv-word h1,#fv-word h2,#fv-word h3{color:#1a1a2e;margin:16px 0 8px;}
+#fv-word p{margin:6px 0;}
+#fv-word table{border-collapse:collapse;width:100%;margin:12px 0;}
+#fv-word td,#fv-word th{border:1px solid #ddd;padding:8px 12px;}
+#fv-word th{background:#f3f4f6;font-weight:700;}
+#fv-word img{max-width:100%;border-radius:6px;}
+.pptx-slide{
+  background:#fff; border-radius:12px; margin-bottom:20px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.25);
+  overflow:hidden; position:relative;
+  aspect-ratio:16/9; width:100%;
+  display:flex;align-items:center;justify-content:center;
+}
+.pptx-slide-num{
+  position:absolute;top:10px;left:10px;
+  background:rgba(0,0,0,0.5);color:#fff;
+  font-size:11px;padding:3px 8px;border-radius:20px;
+}
+.pptx-slide-content{
+  padding:24px 32px;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;direction:rtl;font-family:'Tajawal',Arial,sans-serif;
+  overflow:hidden;
+}
+.pptx-slide-content h2{font-size:clamp(16px,3vw,28px);color:#1a1a2e;margin-bottom:12px;}
+.pptx-slide-content p,.pptx-slide-content li{font-size:clamp(12px,1.8vw,16px);color:#374151;line-height:1.6;}
+</style>
+
+<!-- ====== End File Viewer Modal ====== -->
+
 <script>
+  (function() {
+    const canvas = document.getElementById('bg-canvas');
+    if (!canvas || typeof THREE === 'undefined') return;
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 20;
+
+    const shapes = [];
+    const colors = [0x7c6ff7, 0x5ea8f7, 0xf0a840, 0xe06bb5, 0x3dd68c, 0xa89ff9];
+
+    function rnd(a, b) { return a + Math.random() * (b - a); }
+
+    // Wireframe 3D objects
+    const geometries = [
+      new THREE.OctahedronGeometry(1.2, 0),
+      new THREE.TetrahedronGeometry(1.2, 0),
+      new THREE.IcosahedronGeometry(1, 0),
+      new THREE.BoxGeometry(1.6, 1.6, 1.6),
+      new THREE.TorusGeometry(0.9, 0.3, 8, 12),
+    ];
+
+    for (let i = 0; i < 28; i++) {
+      const geo = geometries[Math.floor(Math.random() * geometries.length)];
+      const mat = new THREE.MeshBasicMaterial({
+        color: colors[Math.floor(Math.random() * colors.length)],
+        wireframe: true,
+        transparent: true,
+        opacity: rnd(0.06, 0.18)
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(rnd(-30, 30), rnd(-20, 20), rnd(-30, 5));
+      mesh.rotation.set(rnd(0, Math.PI*2), rnd(0, Math.PI*2), rnd(0, Math.PI*2));
+      mesh.userData = {
+        rx: rnd(-0.003, 0.003),
+        ry: rnd(-0.004, 0.004),
+        rz: rnd(-0.002, 0.002),
+        fy: rnd(-0.008, 0.008),
+        baseY: mesh.position.y,
+        phase: rnd(0, Math.PI * 2)
+      };
+      scene.add(mesh);
+      shapes.push(mesh);
+    }
+
+    // Floating dots
+    const dotGeo = new THREE.BufferGeometry();
+    const dotCount = 200;
+    const pos = new Float32Array(dotCount * 3);
+    for (let i = 0; i < dotCount; i++) {
+      pos[i*3]   = rnd(-40, 40);
+      pos[i*3+1] = rnd(-30, 30);
+      pos[i*3+2] = rnd(-20, 5);
+    }
+    dotGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const dotMat = new THREE.PointsMaterial({ color: 0x7c6ff7, size: 0.12, transparent: true, opacity: 0.4 });
+    scene.add(new THREE.Points(dotGeo, dotMat));
+
+    let mouse = { x: 0, y: 0 };
+    document.addEventListener('mousemove', e => {
+      mouse.x = (e.clientX / window.innerWidth  - 0.5) * 0.5;
+      mouse.y = (e.clientY / window.innerHeight - 0.5) * 0.5;
+    });
+
+    let t = 0;
+    function animate() {
+      if (!document.getElementById('landing-screen') || document.getElementById('landing-screen').style.display === 'none') return;
+      requestAnimationFrame(animate);
+      t += 0.01;
+      shapes.forEach(m => {
+        m.rotation.x += m.userData.rx;
+        m.rotation.y += m.userData.ry;
+        m.rotation.z += m.userData.rz;
+        m.position.y = m.userData.baseY + Math.sin(t + m.userData.phase) * 1.5;
+      });
+      camera.position.x += (mouse.x * 4 - camera.position.x) * 0.04;
+      camera.position.y += (-mouse.y * 3 - camera.position.y) * 0.04;
+      camera.lookAt(scene.position);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  })();
+
+  // 3D tilt effect on cards
+  document.querySelectorAll('.choir-card').forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width  - 0.5;
+      const y = (e.clientY - rect.top)  / rect.height - 0.5;
+      card.querySelector('.choir-card-inner').style.transform =
+        `rotateY(${x * 14}deg) rotateX(${-y * 10}deg) translateZ(10px)`;
+    });
+    card.addEventListener('mouseleave', () => {
+      card.querySelector('.choir-card-inner').style.transform = '';
+    });
+  });
+
+// ================
+
 // ===================== FIRESTORE PERSISTENCE =====================
 // دالة مساعدة: انتظر Firebase يكون جاهز
 async function waitForFirebase() {
@@ -2764,7 +2865,7 @@ const PASSWORDS = {
 };
 
 let currentRole = null; // 'admin' | 'viewer'
-let loginRoleSelected = 'admin';
+let loginRoleSelected = window._pendingLoginRole || 'admin';
 
 function switchLoginRole(role) {
   loginRoleSelected = role;
@@ -2842,6 +2943,21 @@ let currentChoir = null;
 let members = [], songs = [], schedules = [], attRecords = [], concerts = [];
 let activeGroup = 'all';
 let pendingFile = null;
+const GITHUB_SONGS_BASE = 'https://raw.githubusercontent.com/dividmores-maker/t/main/songs/';
+
+function previewGithubFile(val) {
+  const preview = document.getElementById('s-github-preview');
+  if (!preview) return;
+  if (!val.trim()) { preview.innerHTML = ''; return; }
+  const url = GITHUB_SONGS_BASE + encodeURIComponent(val.trim());
+  const ext = val.split('.').pop().toLowerCase();
+  const isAudio = ['mp3','wav','m4a','ogg','aac'].includes(ext);
+  if (isAudio) {
+    preview.innerHTML = '<audio controls src="' + url + '" style="width:100%;border-radius:8px;" onerror="this.parentElement.innerHTML=\'<div style=&quot;color:#e06bb5;font-size:12px;&quot;>&#x274C; الملف مش موجود على GitHub<\/div>\'"></audio>';
+  } else {
+    preview.innerHTML = '<div style="font-size:11px;color:#3dd68c;">🔗 ' + url + '</div>';
+  }
+}
 
 async function enterChoir(name, icon) {
   // إظهار رسالة تحميل
@@ -3502,7 +3618,14 @@ async function addSong() {
 
   let fileUrl = null;
   let fileName = null;
-  if (pendingFile) {
+
+  // أولوية: GitHub filename
+  const githubFile = document.getElementById('s-github-file');
+  const githubVal = githubFile ? githubFile.value.trim() : '';
+  if (githubVal) {
+    fileUrl  = GITHUB_SONGS_BASE + encodeURIComponent(githubVal);
+    fileName = githubVal;
+  } else if (pendingFile) {
     if (pendingFile.size > 5 * 1024 * 1024) {
       return alert('❌ حجم الملف كبير جداً (أكبر من 5 ميغا)\nمن فضلك استخدم ملف أصغر');
     }
@@ -3528,6 +3651,8 @@ async function addSong() {
   ['s-name','s-season','s-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('s-file').value = '';
   document.getElementById('s-file-preview').innerHTML = '';
+  if (document.getElementById('s-github-file')) document.getElementById('s-github-file').value = '';
+  if (document.getElementById('s-github-preview')) document.getElementById('s-github-preview').innerHTML = '';
   pendingFile = null;
   closeModal('modal-song');
   renderSongs(''); updateDashboard();
@@ -4503,7 +4628,7 @@ function exportAttendancePDF() {
   const now = new Date();
 
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-  <style>
+  ${'<'}style>
     body{font-family:Arial,sans-serif;margin:30px;color:#1a1a2e;direction:rtl;}
     h1{color:#7c6ff7;text-align:center;margin-bottom:4px;font-size:22px;}
     .sub{text-align:center;color:#666;font-size:13px;margin-bottom:24px;}
@@ -4516,7 +4641,7 @@ function exportAttendancePDF() {
     td{padding:9px 12px;border-bottom:1px solid #e5e7eb;}
     tr:nth-child(even) td{background:#f9f9ff;}
     @media print{body{margin:15px;}}
-  </style></head><body>
+  ${'<'}/style>${'<'}/head><body>
   <h1>🎵 تقرير الحضور — كورال ${currentChoir}</h1>
   <div class="sub">تاريخ التقرير: ${now.getDate()} ${arMonths[now.getMonth()]} ${now.getFullYear()}</div>
   <div class="summary">
@@ -4526,7 +4651,7 @@ function exportAttendancePDF() {
   </div>
   <table><thead><tr><th>الاسم</th><th>حاضر</th><th>غائب</th><th>الإجمالي</th><th>النسبة</th></tr></thead>
   <tbody>${rows}</tbody></table>
-  </body></html>`;
+  ${'<'}/body>${'<'}/html>`;
 
   const win = window.open('', '_blank');
   win.document.write(html);
@@ -4558,7 +4683,7 @@ function exportSchedulePDF() {
 
   const now = new Date();
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-  <style>
+  ${'<'}style>
     body{font-family:Arial,sans-serif;margin:30px;color:#1a1a2e;direction:rtl;}
     h1{color:#7c6ff7;text-align:center;margin-bottom:4px;font-size:22px;}
     .sub{text-align:center;color:#666;font-size:13px;margin-bottom:24px;}
@@ -4567,12 +4692,12 @@ function exportSchedulePDF() {
     td{padding:9px 12px;border-bottom:1px solid #e5e7eb;}
     tr:nth-child(even) td{background:#f9f9ff;}
     @media print{body{margin:15px;}}
-  </style></head><body>
+  ${'<'}/style>${'<'}/head><body>
   <h1>📅 جدول البروفات والحفلات — كورال ${currentChoir}</h1>
   <div class="sub">تاريخ التقرير: ${now.getDate()} ${arMonths[now.getMonth()]} ${now.getFullYear()}</div>
   <table><thead><tr><th>النوع</th><th>العنوان</th><th>التاريخ</th><th>الوقت</th><th>المكان</th><th>الفريق</th></tr></thead>
   <tbody>${rows}</tbody></table>
-  </body></html>`;
+  ${'<'}/body>${'<'}/html>`;
 
   const win = window.open('', '_blank');
   win.document.write(html);
@@ -4711,90 +4836,8 @@ window.addEventListener('resize', () => {
 });
 // ===================== END MOBILE NAVIGATION =====================
 
-// ===== EXPOSE FUNCTIONS TO GLOBAL SCOPE =====
-if (typeof doLogin !== "undefined") window.doLogin = doLogin;
-if (typeof doLogout !== "undefined") window.doLogout = doLogout;
-if (typeof enterChoir !== "undefined") window.enterChoir = enterChoir;
-if (typeof openModal !== "undefined") window.openModal = openModal;
-if (typeof closeModal !== "undefined") window.closeModal = closeModal;
-if (typeof addSong !== "undefined") window.addSong = addSong;
-if (typeof deleteSong !== "undefined") window.deleteSong = deleteSong;
-if (typeof renderSongs !== "undefined") window.renderSongs = renderSongs;
-if (typeof openFileViewer !== "undefined") window.openFileViewer = openFileViewer;
-if (typeof closeFileViewer !== "undefined") window.closeFileViewer = closeFileViewer;
-if (typeof playSongAudio !== "undefined") window.playSongAudio = playSongAudio;
-// ===== END EXPOSE =====
-</script>
+// ================
 
-<!-- ====== File Viewer Modal ====== -->
-<div class="modal-overlay" id="modal-file-viewer" style="z-index:200;" onclick="if(event.target===this)closeFileViewer()">
-  <div id="file-viewer-box" style="
-    background:var(--bg2); border:1px solid var(--border2); border-radius:18px;
-    width:90vw; max-width:900px; height:88vh; display:flex; flex-direction:column;
-    animation: modalIn 0.25s ease; overflow:hidden; position:relative;">
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <span id="fv-icon" style="font-size:24px;">📄</span>
-        <div>
-          <div id="fv-title" style="font-size:16px;font-weight:700;color:var(--text);">اسم الملف</div>
-          <div id="fv-type" style="font-size:12px;color:var(--text2);margin-top:2px;">نوع الملف</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <a id="fv-download-btn" href="#" download="" class="btn btn-sm btn-dl">⬇ تنزيل</a>
-        <button class="btn btn-sm" onclick="closeFileViewer()" style="padding:6px 14px;">✕ إغلاق</button>
-      </div>
-    </div>
-    <!-- Content area -->
-    <div id="fv-content" style="flex:1;overflow:auto;padding:0;position:relative;">
-      <div id="fv-loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text2);">
-        <div style="font-size:40px;">⏳</div>
-        <div style="font-size:14px;">جاري تحميل الملف...</div>
-      </div>
-      <!-- Word viewer -->
-      <div id="fv-word" style="display:none;padding:32px 40px;direction:rtl;background:#fff;color:#111;min-height:100%;font-family:'Tajawal',Arial,sans-serif;line-height:1.8;font-size:15px;"></div>
-      <!-- PPTX viewer -->
-      <div id="fv-pptx" style="display:none;padding:20px;background:var(--bg);min-height:100%;"></div>
-      <!-- Error -->
-      <div id="fv-error" style="display:none;padding:40px;text-align:center;color:var(--red);">
-        <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
-        <div id="fv-error-msg" style="font-size:15px;"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<style>
-#fv-word h1,#fv-word h2,#fv-word h3{color:#1a1a2e;margin:16px 0 8px;}
-#fv-word p{margin:6px 0;}
-#fv-word table{border-collapse:collapse;width:100%;margin:12px 0;}
-#fv-word td,#fv-word th{border:1px solid #ddd;padding:8px 12px;}
-#fv-word th{background:#f3f4f6;font-weight:700;}
-#fv-word img{max-width:100%;border-radius:6px;}
-.pptx-slide{
-  background:#fff; border-radius:12px; margin-bottom:20px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.25);
-  overflow:hidden; position:relative;
-  aspect-ratio:16/9; width:100%;
-  display:flex;align-items:center;justify-content:center;
-}
-.pptx-slide-num{
-  position:absolute;top:10px;left:10px;
-  background:rgba(0,0,0,0.5);color:#fff;
-  font-size:11px;padding:3px 8px;border-radius:20px;
-}
-.pptx-slide-content{
-  padding:24px 32px;width:100%;height:100%;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;direction:rtl;font-family:'Tajawal',Arial,sans-serif;
-  overflow:hidden;
-}
-.pptx-slide-content h2{font-size:clamp(16px,3vw,28px);color:#1a1a2e;margin-bottom:12px;}
-.pptx-slide-content p,.pptx-slide-content li{font-size:clamp(12px,1.8vw,16px);color:#374151;line-height:1.6;}
-</style>
-
-<script>
 function openFileViewer(songId) {
   const s = songs.find(x => x.id == songId);
   if (!s || !s.fileUrl) return alert('لا يوجد ملف مرفق');
@@ -4985,7 +5028,62 @@ function showViewerError(msg) {
   document.getElementById('fv-error-msg').innerHTML = msg;
   errDiv.style.display = 'block';
 }
+
+// ===== EXPOSE TO GLOBAL SCOPE =====
+window._doLogin = doLogin;
+window._switchLoginRole = switchLoginRole;
+window.doLogin = doLogin;
+window.doLogout = doLogout;
+window.switchLoginRole = switchLoginRole;
+window.enterChoir = enterChoir;
+window.backToLanding = backToLanding;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.showPage = showPage;
+window.mobileNav = mobileNav;
+window.mobileNavBottom = mobileNavBottom;
+window.openMobileMenu = openMobileMenu;
+window.closeMobileMenu = closeMobileMenu;
+window.toggleNotifPanel = toggleNotifPanel;
+window.clearNotifications = clearNotifications;
+window.addSong = addSong;
+window.deleteSong = deleteSong;
+window.openFileViewer = openFileViewer;
+window.closeFileViewer = closeFileViewer;
+window.playSongAudio = playSongAudio;
+window.addMember = addMember;
+window.deleteMember = deleteMember;
+window.addSchedule = addSchedule;
+window.deleteSchedule = deleteSchedule;
+window.addConcert = addConcert;
+window.deleteConcert = deleteConcert;
+window.openAttModal = openAttModal;
+window.saveAttendance = saveAttendance;
+window.setGroup = setGroup;
+window.sendWhatsAppMessages = sendWhatsAppMessages;
+window.waSendAll = waSendAll;
+window.waSendOne = waSendOne;
+window.exportMembersExcel = exportMembersExcel;
+window.exportAttendanceExcel = exportAttendanceExcel;
+window.exportSongsExcel = exportSongsExcel;
+window.exportAttendancePDF = exportAttendancePDF;
+window.exportSchedulePDF = exportSchedulePDF;
+window.exportBackupJSON = exportBackupJSON;
+window.calPrev = calPrev;
+window.calNext = calNext;
+window.calShowDay = calShowDay;
+window.calExportMonth = calExportMonth;
+window.showDayDetail = showDayDetail;
+window.playerToggle = playerToggle;
+window.playerNext = playerNext;
+window.playerPrev = playerPrev;
+window.playerShuffle = playerShuffle;
+window.playerRepeat = playerRepeat;
+window.playerLoad = playerLoad;
+window.renderSongs = renderSongs;
+window.previewGithubFile = previewGithubFile;
+window.saveChoirData = saveChoirData;
+window.renderMembers = renderMembers;
 </script>
-<!-- ====== End File Viewer Modal ====== -->
 </body>
 </html>
