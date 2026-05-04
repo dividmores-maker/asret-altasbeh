@@ -1399,6 +1399,22 @@ tr:hover td {
   /* Attendance radio group stack */
   .att-radio-group { flex-direction: column; gap: 6px; }
 
+
+  /* Subscriptions page mobile */
+
+  /* Subs table - hide notes on mobile */
+  #subs-table td:nth-child(5),
+  #page-subscriptions table thead th:nth-child(5) { display: none; }
+  /* Subs table - smaller action buttons */
+  #subs-table td:last-child .btn { padding: 4px 8px !important; font-size: 11px !important; }
+  #subs-months-bar { gap: 6px; }
+  #subs-months-bar > div { min-width: 80px !important; padding: 8px 10px !important; font-size: 12px; }
+  #subs-month-detail > div:first-child { flex-direction: column; align-items: flex-start; }
+  #subs-search { width: 100% !important; }
+  #subs-filter-status { width: 100% !important; }
+  #subs-month-stats { grid-template-columns: repeat(3, 1fr) !important; }
+  .page-header > div > select { flex: 1; }
+
   /* Player */
   .player-now-playing { padding: 16px; gap: 12px; }
   .player-album-art { width: 60px; height: 60px; font-size: 26px; }
@@ -1413,6 +1429,7 @@ tr:hover td {
 
 @media (max-width: 380px) {
   .stats-grid { grid-template-columns: 1fr; }
+  #subs-month-stats { grid-template-columns: repeat(2, 1fr) !important; }
   .kpi-row { grid-template-columns: 1fr; }
   .main { padding: 10px 10px 76px 10px; }
 }
@@ -1867,6 +1884,7 @@ tr:hover td {
     <div class="nav-item" data-page="calendar" onclick="mobileNav('calendar',this)"><span class="nav-icon">🗓️</span> التقويم</div>
     <div class="nav-item" data-page="player" onclick="mobileNav('player',this)"><span class="nav-icon">🎧</span> مشغّل الترانيم</div>
     <div class="nav-item admin-only" data-page="exports" onclick="mobileNav('exports',this)"><span class="nav-icon">📤</span> تصدير البيانات</div>
+    <div class="nav-item admin-only" data-page="subscriptions" onclick="mobileNav('subscriptions',this)"><span class="nav-icon">💳</span> الاشتراكات</div>
     <div class="nav-label" style="margin-top:8px;">أخرى</div>
     <div class="nav-item" onclick="backToLanding();closeMobileMenu();"><span class="nav-icon">🏠</span> تغيير الكورال</div>
   </nav>
@@ -1924,6 +1942,7 @@ tr:hover td {
     <div class="nav-item" data-page="calendar" onclick="showPage('calendar', this)"><span class="nav-icon">🗓️</span> التقويم</div>
     <div class="nav-item" data-page="player" onclick="showPage('player', this)"><span class="nav-icon">🎧</span> مشغّل الترانيم</div>
     <div class="nav-item admin-only" data-page="exports" onclick="showPage('exports', this)"><span class="nav-icon">📤</span> تصدير البيانات</div>
+    <div class="nav-item admin-only" data-page="subscriptions" onclick="showPage('subscriptions', this)"><span class="nav-icon">💳</span> الاشتراكات</div>
     <div class="nav-label" style="margin-top:8px;">أخرى</div>
     <div class="nav-item" onclick="backToLanding()"><span class="nav-icon">🏠</span> تغيير الكورال</div>
   </nav>
@@ -2301,7 +2320,127 @@ tr:hover td {
   </div>
 </div>
 
+
+<!-- ==================== SUBSCRIPTIONS PAGE ==================== -->
+<div id="page-subscriptions" class="page">
+  <div class="page-header">
+    <h1>💳 <span>الاشتراكات</span></h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%;">
+      <button class="btn btn-primary" onclick="openModal_subscription()" style="flex:1;">+ إضافة اشتراك</button>
+      <button class="btn" onclick="openModal('modal-gen-subs')" style="background:rgba(124,111,247,0.1);border-color:var(--accent);color:var(--accent);">⚡ توليد شهر كامل</button>
+    </div>
+  </div>
+
+  <!-- إجمالي كل الوقت -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;">
+    <div class="stat-card c1"><div class="s-icon">💰</div><div class="s-label">إجمالي المحصّل</div><div class="s-value" id="subs-total-paid">0 ج</div></div>
+    <div class="stat-card c2"><div class="s-icon">⏳</div><div class="s-label">معلق (كل الشهور)</div><div class="s-value" id="subs-count-pending">0</div></div>
+    <div class="stat-card c3"><div class="s-icon">❌</div><div class="s-label">متأخر (كل الشهور)</div><div class="s-value" id="subs-count-overdue">0</div></div>
+    <div class="stat-card c4"><div class="s-icon">📅</div><div class="s-label">عدد الشهور</div><div class="s-value" id="subs-months-count">0</div></div>
+  </div>
+
+  <!-- شريط الشهور -->
+  <div style="margin-bottom:20px;">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:10px;font-weight:500;">📅 سجل الشهور — اختر شهراً لعرض تفاصيله:</div>
+    <div id="subs-months-bar" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- محتوى الشهر المختار -->
+  <div id="subs-month-detail" style="display:none;">
+    <!-- هيدر الشهر -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <h2 id="subs-detail-title" style="font-size:18px;font-weight:700;color:var(--accent);margin:0;"></h2>
+        <span id="subs-detail-badge"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="subs-search" placeholder="🔍 بحث..." oninput="renderSubsDetail()" style="padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:'Tajawal',sans-serif;font-size:13px;flex:1;min-width:120px;">
+        <select id="subs-filter-status" onchange="renderSubsDetail()" style="padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:'Tajawal',sans-serif;font-size:13px;flex:1;min-width:120px;">
+          <option value="all">كل الحالات</option>
+          <option value="paid">مدفوع ✅</option>
+          <option value="pending">معلق ⏳</option>
+          <option value="overdue">متأخر ❌</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- إحصائيات الشهر -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;" id="subs-month-stats"></div>
+
+    <!-- جدول الشهر -->
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>اسم العضو</th>
+          <th>المبلغ</th>
+          <th>الحالة</th>
+          <th>تاريخ الدفع</th>
+          <th>ملاحظات</th>
+          <th>إجراء</th>
+        </tr></thead>
+        <tbody id="subs-table"><tr class="empty-row"><td colspan="6">لا يوجد اشتراكات</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- حالة فارغة -->
+  <div id="subs-empty-state" style="text-align:center;padding:60px 20px;color:var(--text2);">
+    <div style="font-size:48px;margin-bottom:12px;">💳</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:8px;">لا يوجد اشتراكات بعد</div>
+    <div style="font-size:13px;color:var(--text3);">ابدأ بإضافة اشتراك أو توليد شهر كامل</div>
+  </div>
+</div>
+
 </main>
+
+
+
+<!-- Modal: Generate Monthly Subscriptions -->
+<div class="modal-overlay" id="modal-gen-subs">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>⚡ توليد اشتراكات شهر كامل</h3>
+      <button class="modal-close" onclick="closeModal('modal-gen-subs')">✕</button>
+    </div>
+    <div class="form-group"><label>الشهر *</label><input type="month" id="gen-month" style="width:100%;"></div>
+    <div class="form-group"><label>المبلغ الافتراضي (جنيه) *</label><input type="number" id="gen-amount" placeholder="مثال: 50" min="0" style="width:100%;"></div>
+    <p style="font-size:13px;color:var(--text2);margin:0 0 16px;">سيضيف اشتراك معلق لكل عضو مش عنده اشتراك لهذا الشهر</p>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-gen-subs')">إلغاء</button>
+      <button class="btn btn-primary" onclick="generateMonthlySubscriptions()">⚡ توليد</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Subscription -->
+<div class="modal-overlay" id="modal-subscription">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💳 إضافة اشتراك</h3>
+      <button class="modal-close" onclick="closeModal('modal-subscription')">✕</button>
+    </div>
+    <div class="form-group"><label>اسم العضو *</label>
+      <select id="sub-member" style="width:100%;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:'Tajawal',sans-serif;font-size:14px;">
+        <option value="">اختر العضو...</option>
+      </select>
+    </div>
+    <div class="form-group"><label>الشهر *</label><input type="month" id="sub-month" style="width:100%;"></div>
+    <div class="form-group"><label>المبلغ (جنيه) *</label><input type="number" id="sub-amount" placeholder="مثال: 50" min="0" style="width:100%;"></div>
+    <div class="form-group"><label>الحالة</label>
+      <select id="sub-status" style="width:100%;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:'Tajawal',sans-serif;font-size:14px;">
+        <option value="pending">معلق ⏳</option>
+        <option value="paid">مدفوع ✅</option>
+        <option value="overdue">متأخر ❌</option>
+      </select>
+    </div>
+    <div class="form-group" id="sub-date-group"><label>تاريخ الدفع</label><input type="date" id="sub-date" style="width:100%;"></div>
+    <div class="form-group"><label>ملاحظات</label><textarea id="sub-notes" placeholder="أي ملاحظات..." style="width:100%;min-height:70px;resize:vertical;"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-subscription')">إلغاء</button>
+      <button class="btn btn-primary" onclick="addSubscription()">حفظ الاشتراك</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Add Member -->
 <div class="modal-overlay" id="modal-member">
@@ -2318,6 +2457,7 @@ tr:hover td {
       <select id="m-voice"><option value="soprano">سوبرانو</option><option value="alto">ألتو</option><option value="tenor">تينور</option><option value="bass">باس</option></select>
     </div>
     <div class="form-group"><label>رقم الهاتف</label><div style="display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);overflow:hidden;"><span id="m-phone-prefix" style="padding:10px 10px;color:var(--text2);font-size:14px;background:var(--bg2);border-left:1px solid var(--border2);white-space:nowrap;flex-shrink:0;">🇪🇬 +20</span><input type="tel" id="m-phone" placeholder="1xxxxxxxxx" inputmode="numeric" style="border:none!important;border-radius:0!important;background:transparent!important;flex:1;min-width:0;padding:10px 12px;"></div></div>
+    <div class="form-group"><label>🎂 تاريخ الميلاد <span style="color:var(--text3);font-weight:400;">(اختياري)</span></label><input type="date" id="m-birthday" style="width:100%;"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-member')">إلغاء</button>
       <button class="btn btn-primary" onclick="addMember()">إضافة العضو</button>
@@ -2664,7 +2804,7 @@ async function saveChoirData() {
   showSaveToast();
   try {
     await waitForFirebase();
-    const data = { members, songs, schedules, attRecords, concerts };
+    const data = { members, songs, schedules, attRecords, concerts, subscriptions };
     await window.saveChoirDataFirestore(currentChoir, data);
     // احتياطي: localStorage
     const key = 'choirApp_' + currentChoir;
@@ -2674,7 +2814,7 @@ async function saveChoirData() {
     // fallback localStorage فقط
     try {
       const key = 'choirApp_' + currentChoir;
-      const data = { members, songs, schedules, attRecords, concerts };
+      const data = { members, songs, schedules, attRecords, concerts, subscriptions };
       localStorage.setItem(key, JSON.stringify(data));
       showSaveToast('💾 محفوظ محلياً');
     } catch(e2) {}
@@ -2721,7 +2861,8 @@ async function loadChoirData(name) {
         songs:      d.songs      || [],
         schedules:  d.schedules  || [],
         attRecords: d.attRecords || [],
-        concerts:   d.concerts   || []
+        concerts:   d.concerts   || [],
+        subscriptions: d.subscriptions || []
       };
     }
   } catch(e) {}
@@ -2935,12 +3076,12 @@ function isViewer() { return currentRole === 'viewer'; }
 
 // Per-choir data store
 const choirData = {
-  'قيثاره داود':    { members: [], songs: [], schedules: [], attRecords: [], concerts: [] },
-  'صوت من السماء': { members: [], songs: [], schedules: [], attRecords: [], concerts: [] },
-  'ينبوع التسبيح': { members: [], songs: [], schedules: [], attRecords: [], concerts: [] }
+  'قيثاره داود':    { members: [], songs: [], schedules: [], attRecords: [], concerts: [], subscriptions: [] },
+  'صوت من السماء': { members: [], songs: [], schedules: [], attRecords: [], concerts: [], subscriptions: [] },
+  'ينبوع التسبيح': { members: [], songs: [], schedules: [], attRecords: [], concerts: [], subscriptions: [] }
 };
 let currentChoir = null;
-let members = [], songs = [], schedules = [], attRecords = [], concerts = [];
+let members = [], songs = [], schedules = [], attRecords = [], concerts = [], subscriptions = [];
 let activeGroup = 'all';
 let pendingFile = null;
 const GITHUB_SONGS_BASE = 'https://raw.githubusercontent.com/dividmores-maker/asret-altasbeh/main/songs/';
@@ -2980,7 +3121,7 @@ async function enterChoir(name, icon) {
     choirData[name] = saved;
   }
   const d = choirData[name];
-  members = d.members; songs = d.songs; schedules = d.schedules; attRecords = d.attRecords; concerts = d.concerts || (d.concerts = []);
+  members = d.members; songs = d.songs; schedules = d.schedules; attRecords = d.attRecords; concerts = d.concerts || (d.concerts = []); subscriptions = d.subscriptions || (d.subscriptions = []);
   // Show notification bell
   const bell = document.getElementById('notif-bell');
   if (bell) bell.style.display = 'flex';
@@ -4732,6 +4873,7 @@ function closeMobileMenu() {
 }
 
 function mobileNav(pageId, el) {
+  if (pageId === 'subscriptions') { setTimeout(renderSubscriptions, 50); }
   // Update desktop nav items too
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('#mobile-drawer .nav-item').forEach(n => n.classList.remove('active'));
@@ -5030,6 +5172,256 @@ function showViewerError(msg) {
 }
 
 // ===== EXPOSE TO GLOBAL SCOPE =====
+
+// ===================== SUBSCRIPTIONS =====================
+let activeSubsMonth = '';
+
+function formatMonthAr(monthStr) {
+  if (!monthStr) return '';
+  const [y, m] = monthStr.split('-');
+  const names = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  return (names[parseInt(m)-1] || m) + ' ' + y;
+}
+
+function getMonthStatus(monthSubs) {
+  if (!monthSubs.length) return { label: 'فارغ', color: '#888', icon: '○' };
+  const paid = monthSubs.filter(s=>s.status==='paid').length;
+  const overdue = monthSubs.filter(s=>s.status==='overdue').length;
+  const pending = monthSubs.filter(s=>s.status==='pending').length;
+  const total = monthSubs.length;
+  if (overdue > 0) return { label: `${overdue} متأخر`, color: '#e06b6b', icon: '❌' };
+  if (pending > 0) return { label: `${pending} معلق`, color: '#f0c040', icon: '⏳' };
+  if (paid === total) return { label: 'مكتمل', color: '#3dd68c', icon: '✅' };
+  return { label: `${paid}/${total}`, color: '#7c6ff7', icon: '💳' };
+}
+
+function renderSubscriptions() {
+  // Render month pills bar
+  const allMonths = [...new Set(subscriptions.map(s => s.month))].sort().reverse();
+  const bar = document.getElementById('subs-months-bar');
+  const emptyState = document.getElementById('subs-empty-state');
+  const detail = document.getElementById('subs-month-detail');
+
+  // Update global stats
+  const totalPaid = subscriptions.filter(s=>s.status==='paid').reduce((a,s)=>a+s.amount,0);
+  const countPending = subscriptions.filter(s=>s.status==='pending').length;
+  const countOverdue = subscriptions.filter(s=>s.status==='overdue').length;
+  const el = id => document.getElementById(id);
+  if (el('subs-total-paid')) el('subs-total-paid').textContent = totalPaid.toLocaleString('ar-EG') + ' ج';
+  if (el('subs-count-pending')) el('subs-count-pending').textContent = countPending;
+  if (el('subs-count-overdue')) el('subs-count-overdue').textContent = countOverdue;
+  if (el('subs-months-count')) el('subs-months-count').textContent = allMonths.length;
+
+  if (!bar) return;
+
+  if (!allMonths.length) {
+    bar.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'block';
+    if (detail) detail.style.display = 'none';
+    return;
+  }
+  if (emptyState) emptyState.style.display = 'none';
+
+  // Build month pills
+  bar.innerHTML = allMonths.map(month => {
+    const monthSubs = subscriptions.filter(s => s.month === month);
+    const st = getMonthStatus(monthSubs);
+    const isActive = month === activeSubsMonth;
+    const now = new Date().toISOString().slice(0,7);
+    const isCurrent = month === now;
+    return `<div onclick="selectSubsMonth('${month}')" style="
+      cursor:pointer;
+      padding:8px 12px;
+      border-radius:12px;
+      border:2px solid ${isActive ? 'var(--accent)' : 'var(--border2)'};
+      background:${isActive ? 'rgba(124,111,247,0.15)' : 'var(--bg2)'};
+      display:flex;flex-direction:column;align-items:center;gap:3px;
+      transition:all 0.2s;min-width:80px;flex-shrink:0;
+    ">
+      <div style="font-size:13px;font-weight:${isCurrent?'700':'500'};color:${isActive?'var(--accent)':'var(--text)'};white-space:nowrap;">
+        ${isCurrent ? '🔵 ' : ''}${formatMonthAr(month)}
+      </div>
+      <div style="font-size:11px;color:${st.color};font-weight:600;">${st.icon} ${st.label}</div>
+      <div style="font-size:11px;color:var(--text3);">${monthSubs.length} عضو</div>
+    </div>`;
+  }).join('');
+
+  // Auto-select current month or latest
+  if (!activeSubsMonth || !allMonths.includes(activeSubsMonth)) {
+    const now = new Date().toISOString().slice(0,7);
+    activeSubsMonth = allMonths.includes(now) ? now : allMonths[0];
+  }
+  renderSubsDetail();
+}
+
+function selectSubsMonth(month) {
+  activeSubsMonth = month;
+  renderSubscriptions();
+}
+
+function renderSubsDetail() {
+  if (!activeSubsMonth) return;
+  const detail = document.getElementById('subs-month-detail');
+  if (detail) detail.style.display = 'block';
+
+  // Title
+  const titleEl = document.getElementById('subs-detail-title');
+  if (titleEl) titleEl.textContent = formatMonthAr(activeSubsMonth);
+
+  // Status badge
+  const monthSubs = subscriptions.filter(s => s.month === activeSubsMonth);
+  const st = getMonthStatus(monthSubs);
+  const badgeEl = document.getElementById('subs-detail-badge');
+  if (badgeEl) badgeEl.innerHTML = `<span style="background:${st.color}22;color:${st.color};padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;">${st.icon} ${st.label}</span>`;
+
+  // Month stats
+  const paid = monthSubs.filter(s=>s.status==='paid');
+  const pending = monthSubs.filter(s=>s.status==='pending');
+  const overdue = monthSubs.filter(s=>s.status==='overdue');
+  const totalCollected = paid.reduce((a,s)=>a+s.amount,0);
+  const totalExpected = monthSubs.reduce((a,s)=>a+s.amount,0);
+  const statsEl = document.getElementById('subs-month-stats');
+  if (statsEl) statsEl.innerHTML = `
+    <div class="stat-card c1"><div class="s-icon">💰</div><div class="s-label">محصّل</div><div class="s-value" style="font-size:16px;">${totalCollected.toLocaleString('ar-EG')} ج</div></div>
+    <div class="stat-card c4"><div class="s-icon">🎯</div><div class="s-label">المستهدف</div><div class="s-value" style="font-size:16px;">${totalExpected.toLocaleString('ar-EG')} ج</div></div>
+    <div class="stat-card c2"><div class="s-icon">✅</div><div class="s-label">مدفوع</div><div class="s-value" style="font-size:16px;">${paid.length}</div></div>
+    <div class="stat-card c3"><div class="s-icon">⏳</div><div class="s-label">معلق</div><div class="s-value" style="font-size:16px;">${pending.length}</div></div>
+    <div class="stat-card" style="background:rgba(224,107,107,0.1);border:1px solid rgba(224,107,107,0.2);"><div class="s-icon">❌</div><div class="s-label">متأخر</div><div class="s-value" style="font-size:16px;color:#e06b6b;">${overdue.length}</div></div>
+  `;
+
+  // Filter and render table
+  const search = (document.getElementById('subs-search')?.value || '').toLowerCase();
+  const filterStatus = document.getElementById('subs-filter-status')?.value || 'all';
+
+  let list = monthSubs.filter(s => {
+    const ms = !search || s.memberName.toLowerCase().includes(search);
+    const mst = filterStatus === 'all' || s.status === filterStatus;
+    return ms && mst;
+  });
+
+  const order = { overdue: 0, pending: 1, paid: 2 };
+  list.sort((a,b) => (order[a.status]||1) - (order[b.status]||1) || a.memberName.localeCompare(b.memberName, 'ar'));
+
+  const tbody = document.getElementById('subs-table');
+  if (!tbody) return;
+
+  if (!list.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">لا يوجد اشتراكات مطابقة</td></tr>';
+    return;
+  }
+
+  const statusBadge = {
+    paid: '<span style="background:#1a3a2a;color:#3dd68c;padding:3px 10px;border-radius:20px;font-size:12px;">✅ مدفوع</span>',
+    pending: '<span style="background:#2a2a1a;color:#f0c040;padding:3px 10px;border-radius:20px;font-size:12px;">⏳ معلق</span>',
+    overdue: '<span style="background:#3a1a1a;color:#e06b6b;padding:3px 10px;border-radius:20px;font-size:12px;">❌ متأخر</span>'
+  };
+
+  tbody.innerHTML = list.map(s => `
+    <tr>
+      <td style="font-weight:500;">${s.memberName}</td>
+      <td style="font-weight:600;color:var(--accent);">${s.amount} ج</td>
+      <td>${statusBadge[s.status] || s.status}</td>
+      <td style="color:var(--text2);font-size:13px;">${s.date ? new Date(s.date).toLocaleDateString('ar-EG') : '—'}</td>
+      <td style="color:var(--text2);font-size:13px;">${s.notes || '—'}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${s.status !== 'paid' ? `<button class="btn btn-primary" style="font-size:12px;padding:4px 10px;" onclick="changeSubStatus(${s.id},'paid')">✅ حُصِّل</button>` : ''}
+          ${s.status === 'paid' ? `<button class="btn" style="font-size:12px;padding:4px 10px;" onclick="changeSubStatus(${s.id},'pending')">↩ إلغاء</button>` : ''}
+          ${s.status === 'pending' ? `<button class="btn" style="font-size:12px;padding:4px 10px;color:#e06b6b;" onclick="changeSubStatus(${s.id},'overdue')">❌ متأخر</button>` : ''}
+          <button class="btn" style="font-size:12px;padding:4px 10px;color:#e06b6b;" onclick="deleteSubscription(${s.id})">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function populateSubMemberSelect() {
+  const sel = document.getElementById('sub-member');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">اختر العضو...</option>' +
+    members.map(m => `<option value="${m.name}">${m.name} — ${m.group}</option>`).join('');
+}
+
+function openModal_subscription() {
+  populateSubMemberSelect();
+  const now = new Date().toISOString().slice(0,7);
+  document.getElementById('sub-month').value = activeSubsMonth || now;
+  document.getElementById('sub-amount').value = '';
+  document.getElementById('sub-status').value = 'pending';
+  document.getElementById('sub-date').value = '';
+  document.getElementById('sub-notes').value = '';
+  openModal('modal-subscription');
+}
+
+function addSubscription() {
+  if (isViewer()) { alert('👁️ وضع المتفرج — مش مسموح'); return; }
+  const memberName = document.getElementById('sub-member').value.trim();
+  const month = document.getElementById('sub-month').value;
+  const amount = parseFloat(document.getElementById('sub-amount').value) || 0;
+  const status = document.getElementById('sub-status').value;
+  const date = document.getElementById('sub-date').value;
+  const notes = document.getElementById('sub-notes').value.trim();
+  if (!memberName) return alert('من فضلك اختر اسم العضو');
+  if (!month) return alert('من فضلك اختر الشهر');
+  if (!amount) return alert('من فضلك اكتب المبلغ');
+  const exists = subscriptions.find(s => s.memberName === memberName && s.month === month);
+  if (exists) {
+    if (!confirm(`يوجد اشتراك لـ "${memberName}" في نفس الشهر. هتحدثه؟`)) return;
+    exists.amount = amount; exists.status = status; exists.date = date; exists.notes = notes;
+  } else {
+    subscriptions.push({ id: Date.now(), memberName, month, amount, status, date, notes });
+  }
+  activeSubsMonth = month;
+  closeModal('modal-subscription');
+  renderSubscriptions();
+  saveChoirData();
+}
+
+function deleteSubscription(id) {
+  if (!confirm('هتحذف الاشتراك ده؟')) return;
+  subscriptions = subscriptions.filter(s => s.id !== id);
+  renderSubscriptions();
+  saveChoirData();
+}
+
+function changeSubStatus(id, newStatus) {
+  const s = subscriptions.find(x => x.id === id);
+  if (!s) return;
+  s.status = newStatus;
+  if (newStatus === 'paid' && !s.date) s.date = new Date().toISOString().split('T')[0];
+  renderSubscriptions();
+  saveChoirData();
+}
+
+function generateMonthlySubscriptions() {
+  if (isViewer()) { alert('👁️ وضع المتفرج — مش مسموح'); return; }
+  const month = document.getElementById('gen-month')?.value;
+  const amount = parseFloat(document.getElementById('gen-amount')?.value) || 0;
+  if (!month || !amount) return alert('اختر الشهر والمبلغ');
+  let added = 0;
+  members.forEach(m => {
+    const exists = subscriptions.find(s => s.memberName === m.name && s.month === month);
+    if (!exists) {
+      subscriptions.push({ id: Date.now() + Math.random(), memberName: m.name, month, amount, status: 'pending', date: '', notes: '' });
+      added++;
+    }
+  });
+  if (added === 0) { alert('كل الأعضاء عندهم اشتراك لهذا الشهر بالفعل'); return; }
+  alert('✅ تم إضافة ' + added + ' اشتراك');
+  activeSubsMonth = month;
+  closeModal('modal-gen-subs');
+  renderSubscriptions();
+  saveChoirData();
+}
+// ===================== END SUBSCRIPTIONS =====================
+
+window.addSubscription = addSubscription;
+window.deleteSubscription = deleteSubscription;
+window.changeSubStatus = changeSubStatus;
+window.renderSubscriptions = renderSubscriptions;
+window.renderSubsDetail = renderSubsDetail;
+window.selectSubsMonth = selectSubsMonth;
+window.generateMonthlySubscriptions = generateMonthlySubscriptions;
+window.openModal_subscription = openModal_subscription;
 window._doLogin = doLogin;
 window._switchLoginRole = switchLoginRole;
 window.doLogin = doLogin;
